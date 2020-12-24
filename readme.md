@@ -36,3 +36,5 @@ int,int ----- 下棋
 # 下载方法
 
 点击右边的releases，里面有一个包，下载里面的exe文件就可以了
+
+如果实在找不到的话可以[点我下载最新版本](https://github.com/TXMorningstar/Gobang/releases/tag/v1.0)（反正也只有一个版本）
