@@ -41,7 +41,7 @@ def main():
                 elif config.status == "Start" and command[0] != "/":
                     if game.place(board,command):  # 如果玩家输入的坐标有效
                         # 向对手发送落子信息，随后切换回合
-                        # game.sendChess() ###########################################
+                        game.sendChess(command)
                         TURN = 0
                 # 只是以防万一，不认识的全部错误输入
                 else:

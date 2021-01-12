@@ -1,5 +1,6 @@
 import socket
 import random
+import time
 from config import *
 
 class Game(object):
@@ -10,12 +11,13 @@ class Game(object):
             self.multi = False
         else:
             self.multi = True
-            self.dest_ip = dest_ip
+            # self.dest_addr = (dest_ip, 5472)
             self.dest_addr = (dest_ip, 5471)
             self.net = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.net.bind(('', 5471))
+            # self.net.bind(('', 5471))
+            self.net.bind(('', 5472))
             print("绑定端口至5471,")
-            print("正在等待回应…………")
+            print("正在等待回应………")
 
     # 这个方法用于获取用户输入
     def userInput(self,input):
@@ -34,6 +36,8 @@ class Game(object):
             Command().restart(obj)
         elif cmd == "/setting":
             Command().setting(obj)
+        elif cmd == "/exit":
+            self.net.close()
         else:
             Command().badinput()
 
@@ -57,8 +61,10 @@ class Game(object):
                 obj.place(x,y)
                 obj.update()
                 obj.announceNextMove()
+                # 判断玩家是否已经获胜
                 if obj.judge(x,y) == "Win":
                     config.status = "Winning"
+                    self.sendChess(command)
             else:
                 # print("无效坐标，请检查您的输入是否有误")
                 raise ValueError
@@ -70,25 +76,32 @@ class Game(object):
 
     def net_check(self):
         if self.multi:
-            # self.net.sendto(b"check", ('%s' %self.dest_ip, 5471))  # 尝试第一次握手
-            recv_msg, self.dest_addr = self.net.recvfrom(1024)  # 检查对方是否有发送信息给自己
-            # 如果收到的消息是check，说明这个电脑是后入的，需要给先入的电脑发送消息确认连接
-            if recv_msg == b"check":
-                print("连接成功")
-                self.net.sendto(b"connect", ('%s' %self.dest_ip, 5471))  # 连接成功后再发送一次消息进行第二次握手以确保另一位玩家也可以了解到这边的状况
-            # 如果收到的消息是connect，说明这个电脑是先入的，不需要再给对方主机发送消息确认连接
-            elif recv_msg == b"connect":
-                print("连接成功")
-            else:
-                print("连接失败，自动返回单人模式")
-                self.multi = False
-            return
+            while True:
+                try:
+                    self.net.sendto(b"check", self.dest_addr)  # 尝试第一次握手
+                    recv_msg, self.dest_addr = self.net.recvfrom(1024)  # 检查对方是否有发送信息给自己
+                    # 如果收到的消息是check，说明这个电脑是后入的，需要给先入的电脑发送消息确认连接
+                    if recv_msg == b"check":
+                        print("匹配成功")
+                        time.sleep(1)
+                        self.net.sendto(b"connect", self.dest_addr)  # 连接成功后再发送一次消息进行第二次握手以确保另一位玩家也可以了解到这边的状况
+                        return
+                    # 如果收到的消息是connect，说明这个电脑是先入的，不需要再给对方主机发送消息确认连接
+                    elif recv_msg == b"connect":
+                        print("连接成功")
+                        return
+                    else:
+                        print("连接失败，自动返回单人模式")
+                        self.multi = False
+                        return
+                except ConnectionResetError:
+                    pass
 
     def throwCoin(self, obj):
         if self.multi:
             while True:
                 coin = str(random.randint(0,1))  # 抛一次硬币决定先后手
-                # self.net.sendto(coin.encode('utf-8'), self.dest_addr)  # 告诉另一位玩家你的结果
+                self.net.sendto(coin.encode('utf-8'), self.dest_addr)  # 告诉另一位玩家你的结果
                 oppoCoin, self.dest_addr = self.net.recvfrom(1024)
                 # 如果双方的硬币都不一样，就根据彼此的硬币决定先后手开始游戏
                 if coin != oppoCoin.decode('utf-8'):
@@ -104,6 +117,9 @@ class Game(object):
         oppoChess = oppoChess.decode('utf-8')
         return oppoChess
 
+    def sendChess(self,info):
+        print(info)
+        self.net.sendto(info.encode('utf-8'), self.dest_addr)
 
 
 class Command(object):
@@ -120,6 +136,7 @@ class Command(object):
         print("/last".ljust(23,"-"), "上一条指令".rjust(6,"—"))
         print("/undo".ljust(23,"-"), "撤销".rjust(6,"—"))
         print("/giveup".ljust(23,"-"), "投降".rjust(6,"—"))
+        print("/exit".ljust(23,"-"), "退出".rjust(6,"—"))
 
     def start(self, obj):
         config.status = "Start"
