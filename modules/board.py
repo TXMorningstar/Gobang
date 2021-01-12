@@ -65,7 +65,7 @@ class Board(object):
 
         # 打印棋盘的二维数组
         for x in range(config.x):
-            print(str(x).ljust(4), end = "") # 打印y轴坐标
+            print(str(x).ljust(4), end = "")  # 打印y轴坐标
             for y in range(config.y):
                 print(self._board[x][y],end="  ")
             print("\n")

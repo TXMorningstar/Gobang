@@ -1,9 +1,21 @@
+import socket
+import random
 from config import *
-from modules.board import *
 
 class Game(object):
-    def __init__(self):
+    def __init__(self, dest_ip):
         self._command = []
+
+        if dest_ip == "":
+            self.multi = False
+        else:
+            self.multi = True
+            self.dest_ip = dest_ip
+            self.dest_addr = (dest_ip, 5471)
+            self.net = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.net.bind(('', 5471))
+            print("绑定端口至5471,")
+            print("正在等待回应…………")
 
     # 这个方法用于获取用户输入
     def userInput(self,input):
@@ -12,13 +24,15 @@ class Game(object):
 
     # 这个方法会处理所有命令并使用命令对应的方法
     def commandRespond(self, obj):
-        if self._command[-1] == "/help":
+        cmd = self._command[-1]
+
+        if cmd == "/help":
             Command().help()
-        elif self._command[-1] == "/start" and config.status != "Start":
+        elif cmd == "/start" and config.status != "Start":
             Command().start(obj)
-        elif self._command[-1] == "/restart" and config.status == "Start":
+        elif cmd == "/restart" and config.status == "Start":
             Command().restart(obj)
-        elif self._command[-1] == "/setting":
+        elif cmd == "/setting":
             Command().setting(obj)
         else:
             Command().badinput()
@@ -39,7 +53,7 @@ class Game(object):
             y = int(command[-1],10)
 
             # 再次检查输入是否合法：是否超出棋盘边界、命令长度是否规范
-            if x <= config.x and y <= config.y and len(command) == 2:
+            if x < config.x and y < config.y and len(command) == 2:
                 obj.place(x,y)
                 obj.update()
                 obj.announceNextMove()
@@ -51,6 +65,45 @@ class Game(object):
         # 出现错误时返回无效坐标错误
         except ValueError:
             print("无效坐标，请检查您的输入是否有误")
+            return False
+        return True
+
+    def net_check(self):
+        if self.multi:
+            # self.net.sendto(b"check", ('%s' %self.dest_ip, 5471))  # 尝试第一次握手
+            recv_msg, self.dest_addr = self.net.recvfrom(1024)  # 检查对方是否有发送信息给自己
+            # 如果收到的消息是check，说明这个电脑是后入的，需要给先入的电脑发送消息确认连接
+            if recv_msg == b"check":
+                print("连接成功")
+                self.net.sendto(b"connect", ('%s' %self.dest_ip, 5471))  # 连接成功后再发送一次消息进行第二次握手以确保另一位玩家也可以了解到这边的状况
+            # 如果收到的消息是connect，说明这个电脑是先入的，不需要再给对方主机发送消息确认连接
+            elif recv_msg == b"connect":
+                print("连接成功")
+            else:
+                print("连接失败，自动返回单人模式")
+                self.multi = False
+            return
+
+    def throwCoin(self, obj):
+        if self.multi:
+            while True:
+                coin = str(random.randint(0,1))  # 抛一次硬币决定先后手
+                # self.net.sendto(coin.encode('utf-8'), self.dest_addr)  # 告诉另一位玩家你的结果
+                oppoCoin, self.dest_addr = self.net.recvfrom(1024)
+                # 如果双方的硬币都不一样，就根据彼此的硬币决定先后手开始游戏
+                if coin != oppoCoin.decode('utf-8'):
+                    if coin == '0':
+                        print("您获得了后手")
+                    else:
+                        print("您获得了先手")
+                    return int(coin)
+
+    def listenForChess(self):
+        print("对手正在思考中……")
+        oppoChess , self.dest_addr = self.net.recvfrom(1024)
+        oppoChess = oppoChess.decode('utf-8')
+        return oppoChess
+
 
 
 class Command(object):
